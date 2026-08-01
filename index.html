@@ -143,14 +143,6 @@
     <a href="#">&larr; Back to Interview Assistant</a>
   </div>
 
-  <div class="card">
-    <div class="label">CLAUDE API KEY</div>
-    <div class="key-row">
-      <input type="password" id="apiKey" placeholder="sk-ant-...">
-      <button class="btn" id="saveKeyBtn">Save</button>
-    </div>
-    <div class="small-note">Stored only in this browser's localStorage. Never sent anywhere except Anthropic's API.</div>
-  </div>
 
   <div class="card">
     <div class="label">JOB DESCRIPTION</div>
@@ -229,14 +221,6 @@ const $ = (id) => document.getElementById(id);
 const statusMsg = $('statusMsg');
 let lastPackData = null;
 
-// ---- API key handling ----
-const apiKeyInput = $('apiKey');
-apiKeyInput.value = localStorage.getItem('claude_api_key') || '';
-$('saveKeyBtn').addEventListener('click', () => {
-  localStorage.setItem('claude_api_key', apiKeyInput.value.trim());
-  setStatus('API key saved.', 'ok');
-});
-
 function setStatus(msg, type) {
   statusMsg.textContent = msg;
   statusMsg.className = 'status' + (type ? ' ' + type : '');
@@ -282,21 +266,12 @@ async function extractPdfText(file) {
   return text;
 }
 
-// ---- Claude API call ----
+// ---- Claude API call (proxied through Netlify function so no key touches the browser) ----
 async function callClaude(systemPrompt, userPrompt, maxTokens) {
-  const key = localStorage.getItem('claude_api_key');
-  if (!key) throw new Error('No API key set. Enter your Claude API key above and click Save.');
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/.netlify/functions/claude', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
       max_tokens: maxTokens || 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }]
