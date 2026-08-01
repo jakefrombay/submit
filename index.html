@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JD Analysis Tool</title>
+<style>
+  :root {
+    --bg: #0b0e17;
+    --panel: #141826;
+    --panel-2: #1a1f30;
+    --border: #2a2f42;
+    --text: #e8eaf0;
+    --text-dim: #8b90a3;
+    --accent: #6d5bff;
+    --accent-hover: #7e6dff;
+    --btn-dark: #1f2436;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  .header {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .header h1 { margin: 0; font-size: 20px; }
+  .header p { margin: 4px 0 0; color: var(--text-dim); font-size: 13px; }
+  .header a { color: var(--text-dim); text-decoration: none; font-size: 13px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    margin-bottom: 16px;
+  }
+  .label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+  .field-label { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: block; }
+  textarea, input[type=text], input[type=password], select {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+  }
+  textarea { min-height: 160px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  textarea:focus, input:focus, select:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+  .row { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+  .row > div { flex: 1; min-width: 220px; }
+  .btn {
+    background: var(--btn-dark);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .btn:hover { background: #262c42; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+  .status { margin-top: 10px; font-size: 13px; color: var(--text-dim); }
+  .status.error { color: #ff6b6b; }
+  .status.ok { color: #6bffa0; }
+  .hidden { display: none; }
+  #uploadInput { display: none; }
+  .output {
+    white-space: pre-wrap;
+    font-size: 13.5px;
+    line-height: 1.6;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 12px;
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  .output h2, .output h3 { margin-top: 0; }
+  .key-row { display: flex; gap: 8px; align-items: center; }
+  .key-row input { flex: 1; }
+  .small-note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+
+  /* Study pack document rendering (mirrors Word template look) */
+  .pack-doc { background: #12151f; }
+  .pack-doc h1.pd-title { color: #4f7fd6; font-size: 22px; margin: 0 0 4px; }
+  .pack-doc h1.pd-h1 { color: #4f7fd6; font-size: 17px; margin: 22px 0 8px; }
+  .pack-doc h2.pd-h2 { color: #6d97e0; font-size: 14.5px; margin: 16px 0 6px; }
+  .pack-doc p { margin: 4px 0; }
+  .pack-doc p.pd-objective { font-style: italic; color: var(--text-dim); }
+  .pack-doc ul { margin: 4px 0 10px; padding-left: 22px; }
+  .pack-doc li { margin: 3px 0; }
+  .pack-doc a { color: #7ab0ff; }
+  .pack-doc table { border-collapse: collapse; width: 100%; margin: 10px 0 16px; font-size: 13px; }
+  .pack-doc th, .pack-doc td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+  .pack-doc th { background: #1f2436; color: var(--text); }
+  .pack-doc tr.pd-total td { font-weight: 700; }
+  .pack-doc .pd-key-term { font-weight: 700; }
+
+  /* Study guide extras */
+  .pack-doc .pd-green { color: #4a8f2c; }
+  .pack-doc .pd-strength { color: #4a8f2c; }
+  .pack-doc .pd-gap { color: #c98a1f; }
+  .pack-doc pre { background: #0d1018; border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pack-doc .pd-callout { border: 1px solid #c98a1f; background: #241f10; border-radius: 8px; padding: 12px 14px; margin: 10px 0; }
+  .pack-doc td.pd-high { color: #d9704f; font-weight: 600; }
+  .pack-doc td.pd-medium { color: #c9a41f; font-weight: 600; }
+  .pack-doc td.pd-low { color: #4a8f2c; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="header">
+    <div>
+      <h1>JD Analysis Tool</h1>
+      <p>Trim fluff, highlight study areas, and gather resources.</p>
+    </div>
+    <a href="#">&larr; Back to Interview Assistant</a>
+  </div>
+
+  <div class="card">
+    <div class="label">CLAUDE API KEY</div>
+    <div class="key-row">
+      <input type="password" id="apiKey" placeholder="sk-ant-...">
+      <button class="btn" id="saveKeyBtn">Save</button>
+    </div>
+    <div class="small-note">Stored only in this browser's localStorage. Never sent anywhere except Anthropic's API.</div>
+  </div>
+
+  <div class="card">
+    <div class="label">JOB DESCRIPTION</div>
+    <label class="field-label">Paste the Job Description</label>
+    <textarea id="jdText" placeholder="Paste the job description here..."></textarea>
+
+    <div class="btn-row">
+      <button class="btn" id="uploadBtn">Upload JD (PDF/DOCX/TXT/RTF)</button>
+      <input type="file" id="uploadInput" accept=".pdf,.docx,.txt,.rtf">
+    </div>
+
+    <div class="row">
+      <div>
+        <label class="field-label">Target Role / Title (optional)</label>
+        <input type="text" id="targetRole" placeholder="AI/ML Engineer">
+      </div>
+      <div>
+        <label class="field-label">Seniority (optional)</label>
+        <select id="seniority">
+          <option value="">Select...</option>
+          <option>Intern</option>
+          <option>Junior</option>
+          <option>Mid</option>
+          <option selected>Senior</option>
+          <option>Staff</option>
+          <option>Principal</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label class="field-label">Interview Name (optional)</label>
+        <input type="text" id="interviewName" placeholder="Verizon">
+      </div>
+      <div>
+        <label class="field-label">Interview Date &amp; Time (for prep plan)</label>
+        <input type="text" id="interviewDateTime" placeholder="e.g. 2026-08-04 3:00 PM">
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary" id="analyzeBtn">Analyze JD (Claude)</button>
+      <button class="btn" id="studyPackBtn">Build Study Pack (Claude)</button>
+      <button class="btn" id="downloadPackBtn" disabled>Download Study Pack</button>
+      <button class="btn" id="downloadWordBtn" disabled>Download Word (.docx)</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" id="studyGuideBtn">Build Study Guide (Claude)</button>
+      <button class="btn" id="downloadGuideWordBtn" disabled>Download Study Guide (Word)</button>
+    </div>
+    <div class="status" id="statusMsg"></div>
+  </div>
+
+  <div class="card hidden" id="analysisCard">
+    <div class="label">ANALYSIS</div>
+    <div class="output" id="analysisOutput"></div>
+  </div>
+
+  <div class="card hidden" id="packCard">
+    <div class="label">STUDY PACK</div>
+    <div class="output pack-doc" id="packOutput"></div>
+  </div>
+
+  <div class="card hidden" id="guideCard">
+    <div class="label">STUDY GUIDE</div>
+    <div class="output pack-doc" id="guideOutput"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const statusMsg = $('statusMsg');
+let lastPackData = null;
+
+// ---- API key handling ----
+const apiKeyInput = $('apiKey');
+apiKeyInput.value = localStorage.getItem('claude_api_key') || '';
+$('saveKeyBtn').addEventListener('click', () => {
+  localStorage.setItem('claude_api_key', apiKeyInput.value.trim());
+  setStatus('API key saved.', 'ok');
+});
+
+function setStatus(msg, type) {
+  statusMsg.textContent = msg;
+  statusMsg.className = 'status' + (type ? ' ' + type : '');
+}
+
+// ---- File upload ----
+$('uploadBtn').addEventListener('click', () => $('uploadInput').click());
+$('uploadInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setStatus('Reading ' + file.name + '...');
+  try {
+    const ext = file.name.split('.').pop().toLowerCase();
+    let text = '';
+    if (ext === 'txt' || ext === 'rtf') {
+      text = await file.text();
+    } else if (ext === 'pdf') {
+      text = await extractPdfText(file);
+    } else if (ext === 'docx') {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      text = result.value;
+    } else {
+      throw new Error('Unsupported file type: ' + ext);
+    }
+    $('jdText').value = text.trim();
+    setStatus('Loaded ' + file.name + '.', 'ok');
+  } catch (err) {
+    setStatus('Failed to read file: ' + err.message, 'error');
+  }
+});
+
+async function extractPdfText(file) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it => it.str).join(' ') + '\n';
+  }
+  return text;
+}
+
+// ---- Claude API call ----
+async function callClaude(systemPrompt, userPrompt, maxTokens) {
+  const key = localStorage.getItem('claude_api_key');
+  if (!key) throw new Error('No API key set. Enter your Claude API key above and click Save.');
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: maxTokens || 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }]
+    })
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error('API error ' + res.status + ': ' + errBody);
+  }
+  const data = await res.json();
+  const text = data.content.map(b => b.text || '').join('');
+  if (data.stop_reason === 'max_tokens') {
+    throw new Error('Response was cut off (hit max_tokens) before completing. Try again, or shorten the job description.');
+  }
+  return text;
+}
+
+function getContext() {
+  const jd = $('jdText').value.trim();
+  const role = $('targetRole').value.trim();
+  const seniority = $('seniority').value;
+  const interviewName = $('interviewName').value.trim();
+  const interviewDateTime = $('interviewDateTime').value.trim();
+  return { jd, role, seniority, interviewName, interviewDateTime };
+}
+
+// ---- Analyze JD ----
+$('analyzeBtn').addEventListener('click', async () => {
+  const { jd, role, seniority, interviewName } = getContext();
+  if (!jd) { setStatus('Paste or upload a job description first.', 'error'); return; }
+
+  $('analyzeBtn').disabled = true;
+  setStatus('Analyzing JD...');
+  try {
+    const system = 'You are an expert technical recruiter and interview coach. Trim corporate fluff from job descriptions and surface what actually matters: core responsibilities, must-have skills, likely interview themes, and red flags/subtext. Be concise and use clear markdown-style headings.';
+    const user = `Job description${interviewName ? ' for ' + interviewName : ''}${role ? ' (' + role + (seniority ? ', ' + seniority : '') + ')' : ''}:\n\n${jd}\n\nAnalyze this JD: strip fluff, list core responsibilities, must-have skills, nice-to-haves, likely interview focus areas, and any subtext/red flags worth noting.`;
+    const result = await callClaude(system, user);
+    $('analysisOutput').textContent = result;
+    $('analysisCard').classList.remove('hidden');
+    setStatus('Analysis complete.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  } finally {
+    $('analyzeBtn').disabled = false;
+  }
+});
+
+// ---- Build Study Pack ----
+const STUDY_PACK_SCHEMA_PROMPT = `You are an expert interview coach building a "Study Pack" document for a candidate preparing for a specific job interview. You must follow the EXACT structure below and respond with ONLY valid JSON (no markdown fences, no commentary) matching this schema:
+
+{
+  "company": string,                 // company/interview name, e.g. "Verizon"
+  "roleTitle": string,                // target role/title, e.g. "AI Agent Developer"
+  "focusAreas": string,               // one short sentence summarizing the JD's overall focus (can be empty string)
+  "studyTopics": string[],            // ranked list of core study topics distilled from the JD (8-12 items)
+  "studyPlan": [                      // 5-7 study modules
+    {
+      "module": string,               // module title, e.g. "Agentic AI Frameworks & Verizon Ecosystem"
+      "objective": string,            // one sentence: "Understand ..." / "Master ..."
+      "steps": string[]               // 4-6 concrete action steps for this module
+    }
+  ],
+  "resources": [                      // 10-14 real, well-known resources relevant to the topics (official docs, reputable blogs)
+    { "title": string, "url": string, "description": string }
+  ],
+  "searchQueries": string[],          // 8-10 suggested search queries for further research
+  "introText": string,                // 2-3 sentence paragraph introducing the study pack purpose, referencing company + role
+  "modules": [                        // time-commitment table, one row per studyPlan module, same order, numbered "1. ", "2. " etc
+    { "name": string, "hours": number }
+  ],
+  "keyFocusAreas": [                  // 4-6 bolded key terms with a short explanation
+    { "term": string, "description": string }
+  ],
+  "visualizations": [                 // 2-3 concepts worth diagramming, each with a real reference image URL if known
+    { "title": string, "label": string, "url": string }
+  ]
+}
+
+Base everything on the actual job description provided. Study topics, plan, resources, and search queries must be specific to the technologies/skills/domains named or implied in the JD — not generic interview advice.`;
+
+function parseJsonLoose(text) {
+  let t = text.trim();
+  t = t.replace(/^```(json)?/i, '').replace(/```$/, '').trim();
+  // If the model wrapped the JSON in extra prose, isolate the outermost {...}
+  const first = t.indexOf('{');
+  const last = t.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) {
+    t = t.slice(first, last + 1);
+  }
+  try {
+    return JSON.parse(t);
+  } catch (err) {
+    throw new Error('Could not parse the AI response as JSON (' + err.message + '). This usually means the response was cut off — try again.');
+  }
+}
+
+$('studyPackBtn').addEventListener('click', async () => {
+  const { jd, role, seniority, interviewName } = getContext();
+  if (!jd) { setStatus('Paste or upload a job description first.', 'error'); return; }
+
+  $('studyPackBtn').disabled = true;
+  setStatus('Building study pack...');
+  try {
+    const user = `Job description${interviewName ? ' for ' + interviewName : ''}${role ? ' (' + role + (seniority ? ', ' + seniority : '') + ')' : ''}:\n\n${jd}\n\nBuild the complete study pack JSON for this candidate.`;
+    const result = await callClaude(STUDY_PACK_SCHEMA_PROMPT, user, 8192);
+    const data = parseJsonLoose(result);
+    if (!data.company && interviewName) data.company = interviewName;
+    if (!data.roleTitle && role) data.roleTitle = role;
+    lastPackData = data;
+    $('packOutput').innerHTML = renderPackHtml(data);
+    $('packCard').classList.remove('hidden');
+    $('downloadPackBtn').disabled = false;
+    $('downloadWordBtn').disabled = false;
+    setStatus('Study pack ready.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  } finally {
+    $('studyPackBtn').disabled = false;
+  }
+});
+
+// ---- Rendering (shared shape for on-page preview and Word export) ----
+function renderPackHtml(d) {
+  const esc = escapeHtml;
+  let h = '';
+
+  h += `<h1 class="pd-title">${esc(d.company || '')}</h1>`;
+  h += `<h1 class="pd-h1">Information-Dense JD</h1>`;
+  if (d.focusAreas) h += `<p><strong>Focus Areas:</strong> ${esc(d.focusAreas)}</p>`;
+  h += `<p><strong>Study Topics:</strong></p>`;
+  h += `<ul>${(d.studyTopics || []).map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
+
+  h += `<h1 class="pd-h1">Study Plan</h1>`;
+  (d.studyPlan || []).forEach(m => {
+    h += `<h2 class="pd-h2">${esc(m.module)}</h2>`;
+    if (m.objective) h += `<p class="pd-objective">Objective: ${esc(m.objective)}</p>`;
+    h += `<p><strong>Steps:</strong></p>`;
+    h += `<ul>${(m.steps || []).map(s => `<li>${esc(s)}</li>`).join('')}</ul>`;
+  });
+
+  h += `<h1 class="pd-h1">Resources</h1>`;
+  h += `<ul>${(d.resources || []).map(r => `<li><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a> (${esc(r.url)}) — ${esc(r.description)}</li>`).join('')}</ul>`;
+
+  h += `<h1 class="pd-h1">Resource Table</h1>`;
+  h += `<table><thead><tr><th>Topic</th><th>Link</th></tr></thead><tbody>`;
+  h += (d.resources || []).map(r => `<tr><td>${esc(r.title)}</td><td><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></td></tr>`).join('');
+  h += `</tbody></table>`;
+
+  h += `<h1 class="pd-h1">Suggested Search Queries</h1>`;
+  h += `<ul>${(d.searchQueries || []).map(q => `<li>${esc(q)}</li>`).join('')}</ul>`;
+
+  const introTitle = `${d.company || ''}: ${d.roleTitle || ''} Interview Study Pack`.trim();
+  h += `<h1 class="pd-h1">${esc(introTitle)}</h1>`;
+  if (d.introText) h += `<p>${esc(d.introText)}</p>`;
+
+  h += `<h2 class="pd-h2">Core Study Modules &amp; Time Commitment</h2>`;
+  h += `<table><thead><tr><th>Study Module</th><th>Estimated Time (Hours)</th></tr></thead><tbody>`;
+  h += (d.modules || []).map(m => `<tr><td>${esc(m.name)}</td><td>${esc(String(m.hours))}</td></tr>`).join('');
+  const total = (d.modules || []).reduce((sum, m) => sum + (Number(m.hours) || 0), 0);
+  h += `<tr class="pd-total"><td>Total Estimated Study Time</td><td>${total} hours</td></tr>`;
+  h += `</tbody></table>`;
+
+  h += `<h2 class="pd-h2">Key Focus Areas:</h2>`;
+  h += `<ul>${(d.keyFocusAreas || []).map(k => `<li><span class="pd-key-term">${esc(k.term)}:</span> ${esc(k.description)}</li>`).join('')}</ul>`;
+
+  if ((d.visualizations || []).length) {
+    h += `<h2 class="pd-h2">Visualizing Key Concepts:</h2>`;
+    d.visualizations.forEach(v => {
+      h += `<p><strong>${esc(v.title)}</strong></p>`;
+      h += `<p>${esc(v.label)} (<a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.url)}</a>)</p>`;
+    });
+  }
+
+  return h;
+}
+
+function renderPackMarkdown(d) {
+  let lines = [];
+  lines.push(`# ${d.company || ''}`);
+  lines.push(`## Information-Dense JD`);
+  if (d.focusAreas) lines.push(`Focus Areas: ${d.focusAreas}`);
+  lines.push(`Study Topics:`);
+  (d.studyTopics || []).forEach(t => lines.push(`- ${t}`));
+  lines.push('');
+  lines.push(`## Study Plan`);
+  (d.studyPlan || []).forEach(m => {
+    lines.push(`### ${m.module}`);
+    if (m.objective) lines.push(`Objective: ${m.objective}`);
+    lines.push(`Steps:`);
+    (m.steps || []).forEach(s => lines.push(`- ${s}`));
+    lines.push('');
+  });
+  lines.push(`## Resources`);
+  (d.resources || []).forEach(r => lines.push(`- ${r.title} (${r.url}) — ${r.description}`));
+  lines.push('');
+  lines.push(`## Suggested Search Queries`);
+  (d.searchQueries || []).forEach(q => lines.push(`- ${q}`));
+  lines.push('');
+  lines.push(`## ${d.company || ''}: ${d.roleTitle || ''} Interview Study Pack`);
+  if (d.introText) lines.push(d.introText);
+  lines.push('');
+  lines.push(`### Core Study Modules & Time Commitment`);
+  (d.modules || []).forEach(m => lines.push(`- ${m.name}: ${m.hours} hours`));
+  const total = (d.modules || []).reduce((sum, m) => sum + (Number(m.hours) || 0), 0);
+  lines.push(`- Total Estimated Study Time: ${total} hours`);
+  lines.push('');
+  lines.push(`### Key Focus Areas`);
+  (d.keyFocusAreas || []).forEach(k => lines.push(`- **${k.term}:** ${k.description}`));
+  if ((d.visualizations || []).length) {
+    lines.push('');
+    lines.push(`### Visualizing Key Concepts`);
+    d.visualizations.forEach(v => {
+      lines.push(`**${v.title}**`);
+      lines.push(`${v.label} (${v.url})`);
+    });
+  }
+  return lines.join('\n');
+}
+
+// ---- Downloads ----
+function packFilename(ext) {
+  const { role, interviewName } = getContext();
+  const parts = ['StudyPack', interviewName, role].filter(Boolean);
+  return parts.join('_').replace(/\s+/g, '_') + '.' + ext;
+}
+
+$('downloadPackBtn').addEventListener('click', () => {
+  if (!lastPackData) return;
+  const blob = new Blob([renderPackMarkdown(lastPackData)], { type: 'text/markdown' });
+  triggerDownload(blob, packFilename('md'));
+});
+
+$('downloadWordBtn').addEventListener('click', () => {
+  if (!lastPackData) return;
+  const d = lastPackData;
+  const title = `${d.company || ''} Study Pack`;
+  const bodyHtml = renderPackHtml(d);
+
+  const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000; }
+  h1 { color: #2E5395; font-size: 16pt; margin: 18pt 0 6pt; }
+  h1.pd-title { font-size: 20pt; margin-bottom: 2pt; }
+  h2 { color: #4472C4; font-size: 13pt; margin: 14pt 0 4pt; }
+  p { margin: 4pt 0; }
+  .pd-objective { font-style: italic; }
+  ul { margin: 4pt 0 10pt; padding-left: 22pt; }
+  li { margin: 2pt 0; }
+  a { color: #0563C1; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 14pt; }
+  th, td { border: 1px solid #999; padding: 6pt 8pt; text-align: left; vertical-align: top; }
+  th { background: #EEF1F8; }
+  .pd-key-term { font-weight: bold; }
+</style>
+</head>
+<body>
+${bodyHtml.replace('class="pd-title"', 'class="pd-title"').replace(/class="pd-h2"/g, 'class="pd-h2"')}
+</body>
+</html>`;
+
+  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+  triggerDownload(blob, packFilename('doc'));
+});
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ==================== STUDY GUIDE (p1-p10 style) ====================
+let lastGuideData = null;
+
+function formatDuration(ms) {
+  if (ms <= 0) return 'The interview time has already passed';
+  const totalMinutes = Math.round(ms / 60000);
+  const days = Math.floor(totalMinutes / 1440);
+  const hours = Math.floor((totalMinutes % 1440) / 60);
+  const minutes = totalMinutes % 60;
+  const parts = [];
+  if (days) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+  if (hours) parts.push(`${hours} hour${hours !== 1 ? 's' : ''}`);
+  if (!days && minutes) parts.push(`${minutes} minute${minutes !== 1 ? 's' : ''}`);
+  return parts.join(', ') || 'less than a minute';
+}
+
+const STUDY_GUIDE_SCHEMA_PROMPT = `You are an elite interview coach building a personalized, information-dense interview study guide, matching this exact structure. Respond with ONLY valid JSON (no markdown fences, no commentary) matching this schema:
+
+{
+  "roleTitle": string,                 // e.g. "AI Pricing Applied Engineer"
+  "subtitle": string,                  // e.g. "Personalized Interview & Study Guide — Company (via Vendor / Chain)"
+  "meta": { "dateTime": string, "round": string, "clientChain": string, "duration": string },
+  "fitAnalysis": {
+    "summary": string,                 // 1-2 sentence honest fit assessment
+    "strengths": string[],             // "Strong Alignment Areas" - lead with these, tie each to a concrete resume/experience angle
+    "gaps": string[]                   // "Gaps to Close Before the interview" - honest, actionable
+  },
+  "priorityMatrix": [                  // EVERY topic that should be studied for this JD — HARD CAP: exactly 8 rows, pick the 8 most important
+    { "topic": string, "currentLevel": string, "priority": "HIGH" | "MEDIUM" | "LOW" }
+  ],
+  "topicSections": [                   // ONE section per row in priorityMatrix, SAME topics, same order, deep-dive study content
+    {
+      "topic": string,
+      "priority": "HIGH" | "MEDIUM" | "LOW",
+      "intro": string,                 // 1 sentence framing why this matters / how much time to spend
+      "subsections": [                 // EXACTLY 1 subsection, 3-5 bullets, each bullet under 20 words
+        { "heading": string, "bullets": string[] }
+      ]
+    }
+  ],
+  "referenceArchitecture": {
+    "intro": string,                   // 1 sentence
+    "layers": [ { "name": string, "bullets": string[] } ]   // HARD CAP: at most 3 layers, 3 bullets each
+  },
+  "liveCodingPrep": {
+    "intro": string,                   // 1 sentence
+    "patterns": [ { "name": string, "description": string, "code": string, "keyPoints": string[] } ]  // HARD CAP: exactly 1 pattern, code under 12 lines, at most 3 keyPoints
+  },
+  "anchorStories": [                   // STAR-style stories mapping candidate's background to the role — HARD CAP: exactly 2 stories, story text under 40 words each
+    { "title": string, "mapping": string, "story": string }
+  ],
+  "expectedQuestions": {
+    "categories": [                    // HARD CAP: exactly 2 categories, 2 qas each, answers under 30 words each
+      { "name": string, "qas": [ { "q": string, "a": string } ] }
+    ]
+  },
+  "prepPlan": {
+    "intro": string,                   // must state how much time is actually left until the interview, using the exact countdown provided — 1-2 sentences
+    "blocks": [ { "timeBlock": string, "focus": string, "deliverable": string } ]   // HARD CAP: at most 8 blocks
+  },
+  "closing": {
+    "questionsToAsk": string[],        // at most 4
+    "redFlags": string[],              // at most 4
+    "keyTakeaway": string              // under 50 words
+  }
+}
+
+Rules:
+- Base everything on the actual job description provided (and any resume/background context given). Be specific, not generic.
+- priorityMatrix must cover the 8 most important distinct skill/domain/technology areas implied by the JD, ranked HIGH/MEDIUM/LOW by how much the candidate needs to study it given their stated background.
+- topicSections MUST have exactly one entry per priorityMatrix row, in the same order, with topic names matching exactly.
+- prepPlan.blocks MUST be built to fit EXACTLY within the time remaining until the interview (provided to you as an exact countdown) — do not exceed it. If very little time remains (hours), use short granular blocks; if days remain, use daily blocks; if only minutes remain, focus purely on calm final review. Allocate more time to HIGH priority topics.
+- If no resume/background info is given, keep fitAnalysis and anchorStories generic to "a strong technical candidate" rather than inventing fake specifics.
+- The HARD CAPs above are mandatory, not suggestions. Do not exceed them under any circumstances — this response must complete fully within the token budget. Every field must be terse. This is critical — a cut-off response is useless.`;
+
+$('studyGuideBtn').addEventListener('click', async () => {
+  const { jd, role, seniority, interviewName, interviewDateTime } = getContext();
+  if (!jd) { setStatus('Paste or upload a job description first.', 'error'); return; }
+
+  let countdownText = 'No interview date/time was provided — omit exact countdown claims and use a generic multi-day plan.';
+  let interviewDate = null;
+  if (interviewDateTime) {
+    interviewDate = new Date(interviewDateTime);
+    if (!isNaN(interviewDate.getTime())) {
+      const now = new Date();
+      const diffMs = interviewDate.getTime() - now.getTime();
+      countdownText = `Current date/time: ${now.toString()}. Interview date/time: ${interviewDate.toString()}. Time remaining until interview: ${formatDuration(diffMs)} (${diffMs} ms).`;
+    } else {
+      countdownText = `The interview date/time text "${interviewDateTime}" could not be parsed precisely — treat it as approximate and build a generic short-notice plan.`;
+    }
+  }
+
+  $('studyGuideBtn').disabled = true;
+  setStatus('Building study guide...');
+  try {
+    const user = `Job description${interviewName ? ' for ' + interviewName : ''}${role ? ' (' + role + (seniority ? ', ' + seniority : '') + ')' : ''}:\n\n${jd}\n\n${countdownText}\n\nBuild the complete personalized study guide JSON. The prepPlan section must be tailored precisely to the time remaining stated above.`;
+    const result = await callClaude(STUDY_GUIDE_SCHEMA_PROMPT, user, 16000);
+    const data = parseJsonLoose(result);
+    lastGuideData = data;
+    $('guideOutput').innerHTML = renderGuideHtml(data);
+    $('guideCard').classList.remove('hidden');
+    $('downloadGuideWordBtn').disabled = false;
+    setStatus('Study guide ready.', 'ok');
+  } catch (err) {
+    setStatus(err.message, 'error');
+  } finally {
+    $('studyGuideBtn').disabled = false;
+  }
+});
+
+function priorityClass(p) {
+  const v = (p || '').toUpperCase();
+  if (v === 'HIGH') return 'pd-high';
+  if (v === 'MEDIUM') return 'pd-medium';
+  if (v === 'LOW') return 'pd-low';
+  return '';
+}
+
+function renderGuideHtml(d) {
+  const esc = escapeHtml;
+  let h = '';
+
+  h += `<h1 class="pd-title">${esc(d.roleTitle || '')}</h1>`;
+  if (d.subtitle) h += `<p>${esc(d.subtitle)}</p>`;
+  if (d.meta) {
+    h += `<table><tbody>`;
+    if (d.meta.dateTime) h += `<tr><td><strong>Date / Time</strong></td><td>${esc(d.meta.dateTime)}</td></tr>`;
+    if (d.meta.round) h += `<tr><td><strong>Round</strong></td><td>${esc(d.meta.round)}</td></tr>`;
+    if (d.meta.clientChain) h += `<tr><td><strong>Client / Vendor Chain</strong></td><td>${esc(d.meta.clientChain)}</td></tr>`;
+    if (d.meta.duration) h += `<tr><td><strong>Duration</strong></td><td>${esc(d.meta.duration)}</td></tr>`;
+    h += `</tbody></table>`;
+  }
+
+  h += `<h1 class="pd-h1">1. Your Fit Analysis</h1>`;
+  if (d.fitAnalysis && d.fitAnalysis.summary) h += `<p>${esc(d.fitAnalysis.summary)}</p>`;
+  if (d.fitAnalysis && d.fitAnalysis.strengths && d.fitAnalysis.strengths.length) {
+    h += `<h2 class="pd-h2 pd-strength">✅ Strong Alignment Areas (Lead With These)</h2>`;
+    h += `<ul>${d.fitAnalysis.strengths.map(s => `<li>${esc(s)}</li>`).join('')}</ul>`;
+  }
+  if (d.fitAnalysis && d.fitAnalysis.gaps && d.fitAnalysis.gaps.length) {
+    h += `<h2 class="pd-h2 pd-gap">⚠️ Gaps to Close</h2>`;
+    h += `<ul>${d.fitAnalysis.gaps.map(g => `<li>${esc(g)}</li>`).join('')}</ul>`;
+  }
+
+  h += `<h1 class="pd-h1">2. Study Priority Matrix</h1>`;
+  h += `<table><thead><tr><th>Topic</th><th>Your Current Level</th><th>Study Priority</th></tr></thead><tbody>`;
+  (d.priorityMatrix || []).forEach(row => {
+    h += `<tr><td>${esc(row.topic)}</td><td>${esc(row.currentLevel)}</td><td class="${priorityClass(row.priority)}">${esc(row.priority)}</td></tr>`;
+  });
+  h += `</tbody></table>`;
+
+  h += `<h1 class="pd-h1">3. Topic Deep Dives</h1>`;
+  (d.topicSections || []).forEach((t, i) => {
+    h += `<h2 class="pd-h2">3.${i + 1} ${esc(t.topic)} <span class="${priorityClass(t.priority)}">[${esc(t.priority)}]</span></h2>`;
+    if (t.intro) h += `<p class="pd-objective">${esc(t.intro)}</p>`;
+    (t.subsections || []).forEach(sub => {
+      if (sub.heading) h += `<p><strong>${esc(sub.heading)}</strong></p>`;
+      h += `<ul>${(sub.bullets || []).map(b => `<li>${esc(b)}</li>`).join('')}</ul>`;
+    });
+  });
+
+  if (d.referenceArchitecture) {
+    h += `<h1 class="pd-h1">4. Reference Architecture</h1>`;
+    if (d.referenceArchitecture.intro) h += `<p>${esc(d.referenceArchitecture.intro)}</p>`;
+    (d.referenceArchitecture.layers || []).forEach(layer => {
+      h += `<h2 class="pd-h2">${esc(layer.name)}</h2>`;
+      h += `<ul>${(layer.bullets || []).map(b => `<li>${esc(b)}</li>`).join('')}</ul>`;
+    });
+  }
+
+  if (d.liveCodingPrep) {
+    h += `<h1 class="pd-h1">5. Live Coding Prep</h1>`;
+    if (d.liveCodingPrep.intro) h += `<p>${esc(d.liveCodingPrep.intro)}</p>`;
+    (d.liveCodingPrep.patterns || []).forEach(p => {
+      h += `<h2 class="pd-h2">${esc(p.name)}</h2>`;
+      if (p.description) h += `<p>${esc(p.description)}</p>`;
+      if (p.code) h += `<pre>${esc(p.code)}</pre>`;
+      h += `<ul>${(p.keyPoints || []).map(k => `<li>${esc(k)}</li>`).join('')}</ul>`;
+    });
+  }
+
+  if (d.anchorStories && d.anchorStories.length) {
+    h += `<h1 class="pd-h1">6. Anchor Stories</h1>`;
+    d.anchorStories.forEach(s => {
+      h += `<h2 class="pd-h2">${esc(s.title)}${s.mapping ? ' → ' + esc(s.mapping) : ''}</h2>`;
+      if (s.story) h += `<p>${esc(s.story)}</p>`;
+    });
+  }
+
+  if (d.expectedQuestions) {
+    h += `<h1 class="pd-h1">7. Expected Interview Questions &amp; Suggested Answers</h1>`;
+    (d.expectedQuestions.categories || []).forEach(cat => {
+      h += `<h2 class="pd-h2">${esc(cat.name)}</h2>`;
+      (cat.qas || []).forEach(qa => {
+        h += `<p><strong>Q: ${esc(qa.q)}</strong></p>`;
+        h += `<p>${esc(qa.a)}</p>`;
+      });
+    });
+  }
+
+  if (d.prepPlan) {
+    h += `<h1 class="pd-h1">8. Your Prep Plan</h1>`;
+    if (d.prepPlan.intro) h += `<p>${esc(d.prepPlan.intro)}</p>`;
+    h += `<table><thead><tr><th>Time Block</th><th>Focus</th><th>Deliverable</th></tr></thead><tbody>`;
+    (d.prepPlan.blocks || []).forEach(b => {
+      h += `<tr><td>${esc(b.timeBlock)}</td><td>${esc(b.focus)}</td><td>${esc(b.deliverable)}</td></tr>`;
+    });
+    h += `</tbody></table>`;
+  }
+
+  if (d.closing) {
+    h += `<h1 class="pd-h1">9. Closing</h1>`;
+    if (d.closing.questionsToAsk && d.closing.questionsToAsk.length) {
+      h += `<h2 class="pd-h2">Questions to Ask Them</h2>`;
+      h += `<ul>${d.closing.questionsToAsk.map(q => `<li>${esc(q)}</li>`).join('')}</ul>`;
+    }
+    if (d.closing.redFlags && d.closing.redFlags.length) {
+      h += `<h2 class="pd-h2">Red Flags to Avoid</h2>`;
+      h += `<ul>${d.closing.redFlags.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`;
+    }
+    if (d.closing.keyTakeaway) {
+      h += `<h2 class="pd-h2">Key Takeaway</h2>`;
+      h += `<div class="pd-callout">${esc(d.closing.keyTakeaway)}</div>`;
+    }
+  }
+
+  return h;
+}
+
+function guideFilename(ext) {
+  const { role, interviewName } = getContext();
+  const parts = ['StudyGuide', interviewName, role].filter(Boolean);
+  return parts.join('_').replace(/\s+/g, '_') + '.' + ext;
+}
+
+$('downloadGuideWordBtn').addEventListener('click', () => {
+  if (!lastGuideData) return;
+  const d = lastGuideData;
+  const title = d.roleTitle || 'Study Guide';
+  const bodyHtml = renderGuideHtml(d);
+
+  const html = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #000; }
+  h1 { color: #2E5395; font-size: 16pt; margin: 18pt 0 6pt; }
+  h1.pd-title { color: #4a8f2c; font-size: 20pt; margin-bottom: 2pt; text-align: center; }
+  h2 { color: #4472C4; font-size: 13pt; margin: 14pt 0 4pt; }
+  p { margin: 4pt 0; }
+  .pd-objective { font-style: italic; }
+  .pd-strength { color: #4a8f2c; }
+  .pd-gap { color: #b8790f; }
+  ul { margin: 4pt 0 10pt; padding-left: 22pt; }
+  li { margin: 2pt 0; }
+  a { color: #0563C1; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0 14pt; }
+  th, td { border: 1px solid #999; padding: 6pt 8pt; text-align: left; vertical-align: top; }
+  th { background: #EEF1F8; }
+  td.pd-high { color: #C0392B; font-weight: bold; }
+  td.pd-medium { color: #B8860B; font-weight: bold; }
+  td.pd-low { color: #2E7D32; font-weight: bold; }
+  pre { background: #F4F4F4; border: 1px solid #ccc; padding: 8pt; font-family: Consolas, monospace; font-size: 9pt; white-space: pre-wrap; }
+  .pd-callout { border: 1px solid #b8860b; background: #FFF8E1; padding: 10pt 12pt; }
+</style>
+</head>
+<body>
+${bodyHtml}
+</body>
+</html>`;
+
+  const blob = new Blob(['﻿', html], { type: 'application/msword' });
+  triggerDownload(blob, guideFilename('doc'));
+});
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
