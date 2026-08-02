@@ -266,9 +266,9 @@ async function extractPdfText(file) {
   return text;
 }
 
-// ---- Claude API call (proxied through Netlify function so no key touches the browser) ----
+// ---- Claude API call (proxied + streamed through a Netlify Edge Function so no key touches the browser) ----
 async function callClaude(systemPrompt, userPrompt, maxTokens) {
-  const res = await fetch('/.netlify/functions/claude', {
+  const res = await fetch('/api/claude', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -282,9 +282,43 @@ async function callClaude(systemPrompt, userPrompt, maxTokens) {
     const errBody = await res.text();
     throw new Error('API error ' + res.status + ': ' + errBody);
   }
-  const data = await res.json();
-  const text = data.content.map(b => b.text || '').join('');
-  if (data.stop_reason === 'max_tokens') {
+
+  // Anthropic's streaming SSE format is forwarded through as-is; parse it here.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let text = '';
+  let stopReason = null;
+  let errorMsg = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    const events = buffer.split('\n\n');
+    buffer = events.pop(); // last chunk may be incomplete, keep it for next read
+
+    for (const evt of events) {
+      const dataLine = evt.split('\n').find(l => l.startsWith('data:'));
+      if (!dataLine) continue;
+      const jsonStr = dataLine.slice(5).trim();
+      if (!jsonStr) continue;
+      let parsed;
+      try { parsed = JSON.parse(jsonStr); } catch { continue; }
+
+      if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+        text += parsed.delta.text;
+      } else if (parsed.type === 'message_delta' && parsed.delta && parsed.delta.stop_reason) {
+        stopReason = parsed.delta.stop_reason;
+      } else if (parsed.type === 'error') {
+        errorMsg = (parsed.error && parsed.error.message) || 'Unknown streaming error.';
+      }
+    }
+  }
+
+  if (errorMsg) throw new Error('API error: ' + errorMsg);
+  if (stopReason === 'max_tokens') {
     throw new Error('Response was cut off (hit max_tokens) before completing. Try again, or shorten the job description.');
   }
   return text;
