@@ -155,40 +155,21 @@
     </div>
 
     <div class="row">
-      <div>
-        <label class="field-label">Target Role / Title (optional)</label>
-        <input type="text" id="targetRole" placeholder="AI/ML Engineer">
-      </div>
-      <div>
-        <label class="field-label">Seniority (optional)</label>
-        <select id="seniority">
-          <option value="">Select...</option>
-          <option>Intern</option>
-          <option>Junior</option>
-          <option>Mid</option>
-          <option selected>Senior</option>
-          <option>Staff</option>
-          <option>Principal</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="row">
-      <div>
-        <label class="field-label">Interview Name (optional)</label>
-        <input type="text" id="interviewName" placeholder="Verizon">
-      </div>
-      <div>
-        <label class="field-label">Interview Date &amp; Time (for prep plan)</label>
-        <input type="text" id="interviewDateTime" placeholder="e.g. 2026-08-04 3:00 PM">
-      </div>
-    </div>
-
-    <div class="row">
       <div style="flex: 1 1 100%;">
         <label class="field-label">Interview Details (optional)</label>
-        <textarea id="interviewDetails" style="min-height: 80px;" placeholder="Round: R1 with Recruiter &#10;Client / Vendor Chain: NVIDIA &larr; WWT (Prime) &larr; Cloud Destinations&#10;Duration: 9 Months+ contract"></textarea>
-        <div class="small-note">One "Label: value" per line (e.g. Round, Client / Vendor Chain, Duration). This is used as-is in the Study Guide's summary table &mdash; nothing here is invented by the AI.</div>
+        <textarea id="interviewDetails" style="min-height: 80px;" placeholder="Interview Name: Verizon&#10;Date: 2026-08-04 3:00 PM&#10;Round: R1 with Recruiter&#10;Client / Vendor Chain: NVIDIA &larr; WWT (Prime) &larr; Cloud Destinations&#10;Duration: 9 Months+ contract"></textarea>
+        <div class="small-note">One "Label: value" per line. Include a "Date:" line with the interview date/time &mdash; it drives the countdown-based prep plan. This is used as-is in the Study Guide's summary table &mdash; nothing here is invented by the AI.</div>
+      </div>
+    </div>
+
+    <div class="card" style="padding: 0; border: none; background: none; margin: 0 0 16px;">
+      <div class="label">RESUME</div>
+      <label class="field-label">Paste Your Resume</label>
+      <textarea id="resumeText" placeholder="Paste your resume text here..."></textarea>
+
+      <div class="btn-row">
+        <button class="btn" id="resumeUploadBtn">Upload Resume (PDF/DOCX/TXT/RTF)</button>
+        <input type="file" id="resumeUploadInput" accept=".pdf,.docx,.txt,.rtf">
       </div>
     </div>
 
@@ -235,31 +216,37 @@ function setStatus(msg, type) {
 }
 
 // ---- File upload ----
-$('uploadBtn').addEventListener('click', () => $('uploadInput').click());
-$('uploadInput').addEventListener('change', async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  setStatus('Reading ' + file.name + '...');
-  try {
-    const ext = file.name.split('.').pop().toLowerCase();
-    let text = '';
-    if (ext === 'txt' || ext === 'rtf') {
-      text = await file.text();
-    } else if (ext === 'pdf') {
-      text = await extractPdfText(file);
-    } else if (ext === 'docx') {
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      text = result.value;
-    } else {
-      throw new Error('Unsupported file type: ' + ext);
-    }
-    $('jdText').value = text.trim();
-    setStatus('Loaded ' + file.name + '.', 'ok');
-  } catch (err) {
-    setStatus('Failed to read file: ' + err.message, 'error');
+async function extractFileText(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (ext === 'txt' || ext === 'rtf') {
+    return (await file.text()).trim();
+  } else if (ext === 'pdf') {
+    return (await extractPdfText(file)).trim();
+  } else if (ext === 'docx') {
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value.trim();
   }
-});
+  throw new Error('Unsupported file type: ' + ext);
+}
+
+function wireUpload(buttonId, inputId, targetTextareaId) {
+  $(buttonId).addEventListener('click', () => $(inputId).click());
+  $(inputId).addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setStatus('Reading ' + file.name + '...');
+    try {
+      $(targetTextareaId).value = await extractFileText(file);
+      setStatus('Loaded ' + file.name + '.', 'ok');
+    } catch (err) {
+      setStatus('Failed to read file: ' + err.message, 'error');
+    }
+  });
+}
+
+wireUpload('uploadBtn', 'uploadInput', 'jdText');
+wireUpload('resumeUploadBtn', 'resumeUploadInput', 'resumeText');
 
 async function extractPdfText(file) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -334,18 +321,16 @@ async function callClaude(systemPrompt, userPrompt, maxTokens) {
 
 function getContext() {
   const jd = $('jdText').value.trim();
-  const role = $('targetRole').value.trim();
-  const seniority = $('seniority').value;
-  const interviewName = $('interviewName').value.trim();
-  const interviewDateTime = $('interviewDateTime').value.trim();
+  const resume = $('resumeText').value.trim();
   const interviewDetails = $('interviewDetails').value.trim();
-  return { jd, role, seniority, interviewName, interviewDateTime, interviewDetails };
+  return { jd, resume, interviewDetails };
 }
 
 // Parses "Label: value" lines from the free-text Interview Details field into
-// the p1-style meta table fields. Deterministic — never inferred by the AI.
+// the p1-style meta table fields, plus the interview name and date/time used
+// for the countdown-based prep plan. Deterministic — never inferred by the AI.
 function parseInterviewDetails(text) {
-  const result = { round: '', clientChain: '', duration: '', extra: [] };
+  const result = { name: '', dateTime: '', round: '', clientChain: '', duration: '', extra: [] };
   if (!text) return result;
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   lines.forEach(line => {
@@ -353,7 +338,9 @@ function parseInterviewDetails(text) {
     if (!m) { result.extra.push(line); return; }
     const label = m[1].trim().toLowerCase();
     const value = m[2].trim();
-    if (/round/.test(label)) result.round = value;
+    if (/^(interview )?name|company/.test(label)) result.name = value;
+    else if (/date|time|when/.test(label)) result.dateTime = value;
+    else if (/round/.test(label)) result.round = value;
     else if (/client|vendor|chain/.test(label)) result.clientChain = value;
     else if (/duration|length|term/.test(label)) result.duration = value;
     else result.extra.push(`${m[1].trim()}: ${value}`);
@@ -361,16 +348,24 @@ function parseInterviewDetails(text) {
   return result;
 }
 
+// Builds the shared "candidate resume + interview details" context block appended to prompts.
+function contextBlurb({ resume, interviewDetails }) {
+  let blurb = '';
+  if (interviewDetails) blurb += `\n\nInterview details:\n${interviewDetails}`;
+  if (resume) blurb += `\n\nCandidate resume:\n${resume}`;
+  return blurb;
+}
+
 // ---- Analyze JD ----
 $('analyzeBtn').addEventListener('click', async () => {
-  const { jd, role, seniority, interviewName } = getContext();
+  const { jd, resume, interviewDetails } = getContext();
   if (!jd) { setStatus('Paste or upload a job description first.', 'error'); return; }
 
   $('analyzeBtn').disabled = true;
   setStatus('Analyzing JD...');
   try {
     const system = 'You are an expert technical recruiter and interview coach. Trim corporate fluff from job descriptions and surface what actually matters: core responsibilities, must-have skills, likely interview themes, and red flags/subtext. Be concise and use clear markdown-style headings.';
-    const user = `Job description${interviewName ? ' for ' + interviewName : ''}${role ? ' (' + role + (seniority ? ', ' + seniority : '') + ')' : ''}:\n\n${jd}\n\nAnalyze this JD: strip fluff, list core responsibilities, must-have skills, nice-to-haves, likely interview focus areas, and any subtext/red flags worth noting.`;
+    const user = `Job description:\n\n${jd}${contextBlurb({ resume, interviewDetails })}\n\nAnalyze this JD: strip fluff, list core responsibilities, must-have skills, nice-to-haves, likely interview focus areas, and any subtext/red flags worth noting.`;
     const result = await callClaude(system, user);
     $('analysisOutput').textContent = result;
     $('analysisCard').classList.remove('hidden');
@@ -432,17 +427,17 @@ function parseJsonLoose(text) {
 }
 
 $('studyPackBtn').addEventListener('click', async () => {
-  const { jd, role, seniority, interviewName } = getContext();
+  const { jd, resume, interviewDetails } = getContext();
   if (!jd) { setStatus('Paste or upload a job description first.', 'error'); return; }
+  const detailsParsed = parseInterviewDetails(interviewDetails);
 
   $('studyPackBtn').disabled = true;
   setStatus('Building study pack...');
   try {
-    const user = `Job description${interviewName ? ' for ' + interviewName : ''}${role ? ' (' + role + (seniority ? ', ' + seniority : '') + ')' : ''}:\n\n${jd}\n\nBuild the complete study pack JSON for this candidate.`;
+    const user = `Job description:\n\n${jd}${contextBlurb({ resume, interviewDetails })}\n\nBuild the complete study pack JSON for this candidate.`;
     const result = await callClaude(STUDY_PACK_SCHEMA_PROMPT, user, 8192);
     const data = parseJsonLoose(result);
-    if (!data.company && interviewName) data.company = interviewName;
-    if (!data.roleTitle && role) data.roleTitle = role;
+    if (!data.company && detailsParsed.name) data.company = detailsParsed.name;
     lastPackData = data;
     $('packOutput').innerHTML = renderPackHtml(data);
     $('packCard').classList.remove('hidden');
@@ -556,8 +551,7 @@ function renderPackMarkdown(d) {
 
 // ---- Downloads ----
 function packFilename(ext) {
-  const { role, interviewName } = getContext();
-  const parts = ['StudyPack', interviewName, role].filter(Boolean);
+  const parts = ['StudyPack', lastPackData && lastPackData.company, lastPackData && lastPackData.roleTitle].filter(Boolean);
   return parts.join('_').replace(/\s+/g, '_') + '.' + ext;
 }
 
@@ -683,34 +677,29 @@ Rules:
 - The HARD CAPs above are mandatory, not suggestions. Do not exceed them under any circumstances — this response must complete fully within the token budget. Every field must be terse. This is critical — a cut-off response is useless.`;
 
 $('studyGuideBtn').addEventListener('click', async () => {
-  const { jd, role, seniority, interviewName, interviewDateTime, interviewDetails } = getContext();
+  const { jd, resume, interviewDetails } = getContext();
   if (!jd) { setStatus('Paste or upload a job description first.', 'error'); return; }
 
-  let countdownText = 'No interview date/time was provided — omit exact countdown claims and use a generic multi-day plan.';
-  let interviewDate = null;
-  let formattedDateTime = '';
-  if (interviewDateTime) {
-    interviewDate = new Date(interviewDateTime);
+  const detailsParsed = parseInterviewDetails(interviewDetails);
+
+  let countdownText = 'No interview date/time was provided in Interview Details (add a "Date:" line) — omit exact countdown claims and use a generic multi-day plan.';
+  let formattedDateTime = detailsParsed.dateTime;
+  if (detailsParsed.dateTime) {
+    const interviewDate = new Date(detailsParsed.dateTime);
     if (!isNaN(interviewDate.getTime())) {
       const now = new Date();
       const diffMs = interviewDate.getTime() - now.getTime();
       countdownText = `Current date/time: ${now.toString()}. Interview date/time: ${interviewDate.toString()}. Time remaining until interview: ${formatDuration(diffMs)} (${diffMs} ms).`;
       formattedDateTime = interviewDate.toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' });
     } else {
-      countdownText = `The interview date/time text "${interviewDateTime}" could not be parsed precisely — treat it as approximate and build a generic short-notice plan.`;
-      formattedDateTime = interviewDateTime;
+      countdownText = `The interview date/time text "${detailsParsed.dateTime}" could not be parsed precisely — treat it as approximate and build a generic short-notice plan.`;
     }
   }
-
-  const detailsParsed = parseInterviewDetails(interviewDetails);
-  const detailsText = interviewDetails
-    ? `\n\nInterview details provided by the candidate (use ONLY for tone/context — the table itself is populated deterministically from this text, do not restate it in meta):\n${interviewDetails}`
-    : '';
 
   $('studyGuideBtn').disabled = true;
   setStatus('Building study guide...');
   try {
-    const user = `Job description${interviewName ? ' for ' + interviewName : ''}${role ? ' (' + role + (seniority ? ', ' + seniority : '') + ')' : ''}:\n\n${jd}\n\n${countdownText}${detailsText}\n\nBuild the complete personalized study guide JSON. The prepPlan section must be tailored precisely to the time remaining stated above. Leave the "meta" object's dateTime/round/clientChain/duration fields as empty strings — those are filled in separately from user-provided data, not generated by you.`;
+    const user = `Job description:\n\n${jd}${contextBlurb({ resume, interviewDetails })}\n\n${countdownText}\n\nBuild the complete personalized study guide JSON. The prepPlan section must be tailored precisely to the time remaining stated above. Leave the "meta" object's dateTime/round/clientChain/duration fields as empty strings — those are filled in separately from user-provided data, not generated by you.`;
     const result = await callClaude(STUDY_GUIDE_SCHEMA_PROMPT, user, 16000);
     const data = parseJsonLoose(result);
 
@@ -721,6 +710,7 @@ $('studyGuideBtn').addEventListener('click', async () => {
     data.meta.clientChain = detailsParsed.clientChain;
     data.meta.duration = detailsParsed.duration;
     data.meta.extra = detailsParsed.extra;
+    data.company = detailsParsed.name || '';
 
     lastGuideData = data;
     $('guideOutput').innerHTML = renderGuideHtml(data);
@@ -858,8 +848,7 @@ function renderGuideHtml(d) {
 }
 
 function guideFilename(ext) {
-  const { role, interviewName } = getContext();
-  const parts = ['StudyGuide', interviewName, role].filter(Boolean);
+  const parts = ['StudyGuide', lastGuideData && lastGuideData.company, lastGuideData && lastGuideData.roleTitle].filter(Boolean);
   return parts.join('_').replace(/\s+/g, '_') + '.' + ext;
 }
 
